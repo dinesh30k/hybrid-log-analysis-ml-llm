@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Log Analyzer AI</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f5f5;
+}
+
+.container {
+    width: 900px;
+    margin: auto;
+    margin-top: 30px;
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.1);
+}
+
+h1 {
+    text-align: center;
+    color: #ff6600;
+    font-size: 32px;
+}
+
+textarea {
+    width: 100%;
+    height: 120px;
+    font-size: 18px;
+    padding: 10px;
+}
+
+button {
+    width: 100%;
+    padding: 14px;
+    font-size: 20px;
+    background: #ff6600;
+    color: white;
+    border: none;
+    margin-top: 10px;
+    cursor: pointer;
+}
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.card {
+    padding: 20px;
+    text-align: center;
+    background: #f2f2f2;
+    border-radius: 10px;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.critical { border-left: 6px solid red; }
+.security { border-left: 6px solid orange; }
+.unknown { border-left: 6px solid gray; }
+
+.chart-container {
+    width: 260px;
+    margin: 20px auto;
+}
+
+.insights {
+    background: #fff3e6;
+    padding: 15px;
+    margin-top: 20px;
+    border-left: 5px solid #ff6600;
+    font-size: 18px;
+    line-height: 1.6;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+input {
+    flex: 1;
+    padding: 10px;
+    font-size: 16px;
+}
+
+select {
+    padding: 10px;
+    font-size: 16px;
+}
+
+table {
+    width: 100%;
+    margin-top: 15px;
+    border-collapse: collapse;
+    font-size: 17px;
+}
+
+th {
+    background: #ff6600;
+    color: white;
+    padding: 12px;
+}
+.export-btn {
+    background-color: #ff6b00;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.export-btn:hover {
+    background-color: #e65c00;
+}
+
+td {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+tr.critical-row { background: #ffe6e6; }
+tr.security-row { background: #fff0e6; }
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Log Analyzer AI</h1>
+
+<textarea id="logInput" placeholder="Enter log here..."></textarea>
+
+<button onclick="analyzeLog()">Analyze Log</button>
+
+<div class="cards">
+    <div class="card">Recent Logs<br><span id="total">0</span></div>
+    <div class="card critical">Critical<br><span id="critical">0</span></div>
+    <div class="card security">Security<br><span id="security">0</span></div>
+
+    <div class="card">Error<br><span id="errorCount">0</span></div>
+    <div class="card">Warn<br><span id="warnCount">0</span></div>
+    <div class="card">Info<br><span id="infoCount">0</span></div>
+
+    <div class="card unknown">Unknown<br><span id="unknown">0</span></div>
+</div>
+
+<div class="chart-container">
+    <canvas id="chart"></canvas>
+</div>
+
+<div id="alertsBox" style="
+    background: #ffe6e6;
+    padding: 10px;
+    border-radius: 8px;
+    margin-top: 10px;
+    border-left: 5px solid red;
+">
+    🚨 Loading alerts...
+</div>
+
+<div id="aiAlertsBox" style="
+    background: #e6f7ff;
+    padding: 10px;
+    border-radius: 8px;
+    margin-top: 10px;
+    border-left: 5px solid #1890ff;
+">
+    🤖 Loading AI alerts...
+</div>
+
+<div class="insights" id="insightsBox">
+    <b>AI Insights:</b>
+</div>
+<div id="aiSummaryBox" style="
+    background: #f4f6f8;
+    padding: 15px;
+    border-radius: 10px;
+    margin-top: 10px;
+    font-size: 16px;
+    line-height: 1.6;
+    font-weight: 500;
+">
+    <b>🤖 AI Summary:</b><br><br>
+    Loading AI summary...
+</div>
+
+<!-- ✅ ADD THIS BLOCK -->
+<div id="smartSuggestions" style="margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 8px;">
+    <b>💡 Smart Suggestions:</b>
+    <div id="suggestionsList"></div>
+</div>
+
+
+<div class="controls">
+    <input type="text" id="search" placeholder="Search logs..." oninput="loadLogs()">
+
+    <input type="date" id="startDate" onchange="loadLogs()">
+    <input type="date" id="endDate" onchange="loadLogs()">
+
+    <select id="filter" onchange="loadLogs()">
+        <option value="ALL">All Logs</option>
+        <option value="CRITICAL">Critical</option>
+        <option value="SECURITY">Security</option>
+        <option value="ERROR">Error</option>
+        <option value="WARN">Warn</option>
+        <option value="INFO">Info</option>
+        <option value="UNKNOWN">Unknown</option>
+    </select>
+</div>
+
+<div id="exportSummaryBox" style="
+    background: #fff3cd;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    font-size: 14px;
+">
+    🤖 Generating summary...
+</div>
+
+<div style="margin: 15px 0; display: flex; gap: 10px;">
+    <button onclick="exportCSV()" class="export-btn">📥 Export CSV</button>
+    <button onclick="exportJSON()" class="export-btn">📦 Export JSON</button>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>Log</th>
+<th>Prediction</th>
+<th>Confidence</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody id="tableBody"></tbody>
+</table>
+
+</div>
+
+<script>
+let currentFilter = "ALL";
+
+let logsData = [];
+let chart = null;
+
+async function analyzeLog() {
+    const log = document.getElementById("logInput").value;
+
+    try {
+        const res = await fetch("http://127.0.0.1:8000/predict", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ log })
+        });
+
+        const data = await res.json();
+
+        console.log("Prediction response:", data); // ✅ DEBUG
+
+        // OPTIONAL: immediate feedback
+        
+        if (data.error) {
+            alert("Backend Error: " + data.error);
+            return;
+        }
+
+        alert(`Prediction: ${data.prediction} (${data.confidence.toFixed(2)}%)`);
+
+        // reload logs after storing
+        await loadLogs();
+
+        loadAISummary();
+
+    } catch (err) {
+        console.error("Error:", err);
+    }
+}
+
+async function loadLogs() {
+    try {
+        const search = document.getElementById("search").value;
+        const level = document.getElementById("filter").value;
+        const startDate = document.getElementById("startDate").value;
+        const endDate = document.getElementById("endDate").value;
+
+        let url = `http://127.0.0.1:8000/logs?search=${search}&level=${level}&startDate=${startDate}&endDate=${endDate}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        logsData = data.logs || [];
+
+        renderTable(logsData);
+        updateStats(data);
+        await loadInsights();
+        loadSmartSuggestions();
+        loadExportSummary();
+        loadAlerts(); 
+        await loadAIAlerts(); 
+    } catch (err) {
+        console.error("Error loading logs:", err);
+    }
+}
+
+async function loadSmartSuggestions() {
+    try {
+        const res = await fetch("http://127.0.0.1:8000/smart-filters");
+        const data = await res.json();
+
+        const container = document.getElementById("suggestionsList");
+        container.innerHTML = "";
+
+        if (!data.suggestions || data.suggestions.length === 0) {
+            container.innerHTML = "<p>No suggestions</p>";
+            return;
+        }
+
+        data.suggestions.forEach(s => {
+            if (s.type === "action") {
+                html += `
+                    <div class="suggestion">
+                        ${s.message}
+                        <button onclick="applySuggestion('${s.value}')">Apply</button>
+                    </div>
+                `;  
+            }
+            
+            const div = document.createElement("div");
+            div.style.margin = "8px 0";
+            div.style.padding = "8px 10px";
+            div.style.background = "#fff3cd";
+            div.style.borderLeft = "4px solid orange";
+            div.style.borderRadius = "5px";
+            div.style.display = "flex";
+            div.style.justifyContent = "space-between";
+            div.style.alignItems = "center";
+
+            const text = document.createElement("span");
+            text.innerText = s.message + " ";
+
+            const btn = document.createElement("button");
+            btn.innerText = "Apply";
+            btn.style.marginLeft = "10px";
+            btn.style.padding = "5px 10px";
+            btn.style.border = "none";
+            btn.style.background = "#ff6b00";
+            btn.style.color = "white";
+            btn.style.borderRadius = "4px";
+            btn.style.cursor = "pointer";
+
+            btn.onclick = () => {
+                if (s.type === "filter") {
+                    document.getElementById("filter").value = s.value;
+                }
+
+                if (s.type === "search") {
+                    document.getElementById("search").value = s.value;
+                }
+
+                loadLogs();
+            };
+
+            div.appendChild(text);
+            div.appendChild(btn);
+
+            container.appendChild(div);
+        });
+
+    } catch (err) {
+        console.error("Error loading smart suggestions:", err);
+    }
+}
+
+async function loadAIAlerts() {
+    try {
+        const res = await fetch("http://127.0.0.1:8000/alerts/ai");
+        const data = await res.json();
+
+        let box = document.getElementById("aiAlertsBox");
+
+        if (!data.ai_alerts || data.ai_alerts.length === 0) {
+            box.innerHTML = "🤖 No AI anomalies detected";
+            return;
+        }
+
+        let html = "<b>🤖 AI Alerts:</b><br>";
+
+        data.ai_alerts.forEach(a => {
+            html += `
+                <div style="
+                    margin: 6px 0;
+                    padding: 6px 10px;
+                    background: #f0f8ff;
+                    border-left: 4px solid #1890ff;
+                    border-radius: 4px;
+                ">
+                    ${a.message}
+                </div>
+            `;
+        });
+
+        box.innerHTML = html;
+
+    } catch (err) {
+        console.error("AI alerts error:", err);
+        document.getElementById("aiAlertsBox").innerText = "⚠️ Failed to load AI alerts";
+    }
+}
+
+async function loadAISummary() {
+    const box = document.getElementById("aiSummaryBox");
+    box.innerHTML = "<b>🤖 AI Summary:</b><br><br>⏳ Generating AI summary...";
+
+    try {
+        const res = await fetch("http://127.0.0.1:8000/ai-summary");
+        const data = await res.json();
+
+        const box = document.getElementById("aiSummaryBox");
+
+        if (data.summary) {
+            box.innerHTML = `
+                <b>🤖 AI Summary:</b><br><br>
+                ${data.summary}
+            `;
+        } else {
+            box.innerHTML = "⚠️ No AI summary available";
+        }
+
+    } catch (err) {
+        console.error(err);
+        document.getElementById("aiSummaryBox").innerHTML =
+            "<b>🤖 AI Summary:</b><br><br>⚠️ AI summary unavailable (slow or offline)";
+    }
+}
+
+function renderTable(data = logsData) {
+    const tbody = document.getElementById("tableBody");
+    tbody.innerHTML = "";
+
+    data.forEach(log => {
+        let cls = "";
+        if (log.prediction === "CRITICAL") cls = "critical-row";
+        if (log.prediction === "SECURITY") cls = "security-row";
+        if (log.prediction === "ERROR") cls = "critical-row";
+
+        tbody.innerHTML += `
+        <tr class="${cls}">
+            <td>${log.log}</td>
+            <td><b>${log.prediction}</b></td>
+            <td>${Number(log.confidence).toFixed(2)}%</td>
+            <td>${log.timestamp || "N/A"}</td>
+        </tr>`;
+    });
+}
+
+function updateStats(data) {
+    let total = logsData.length;
+
+    let critical = logsData.filter(l => l.prediction === "CRITICAL").length;
+    let security = logsData.filter(l => l.prediction === "SECURITY").length;
+    let error = logsData.filter(l => l.prediction === "ERROR").length;
+    let warn = logsData.filter(l => l.prediction === "WARN").length;
+    let info = logsData.filter(l => l.prediction === "INFO").length;
+    let unknown = logsData.filter(l => l.prediction === "UNKNOWN").length;
+
+    if (data && data.total_recent !== undefined && data.total_all !== undefined) {
+        document.getElementById("total").innerText =
+        `   ${data.total_recent} (Recent) / ${data.total_all} (All)`;
+    } else {
+        document.getElementById("total").innerText = total;
+    }
+    document.getElementById("critical").innerText = critical;
+    document.getElementById("security").innerText = security;
+    document.getElementById("errorCount").innerText = error;
+    document.getElementById("warnCount").innerText = warn;
+    document.getElementById("infoCount").innerText = info;
+    document.getElementById("unknown").innerText = unknown;
+
+    updateChart(critical, security, error, warn, info, unknown);
+}
+
+function updateChart(c, s, e, w, i, u) {
+    if (chart) chart.destroy();
+
+    chart = new Chart(document.getElementById("chart"), {
+        type: "pie",
+        data: {
+            labels: ["Critical", "Security", "Error", "Warn", "Info", "Unknown"],
+            datasets: [{
+                data: [c, s, e, w, i, u]
+            }]
+        }
+    });
+}
+
+function generateInsights(total, critical, security, unknown) {
+    let text = "";
+
+    if (total === 0) {
+        text = "No logs available.";
+    } else {
+        if (security > 0) {
+            text += `⚠️ ${(security/total*100).toFixed(1)}% logs are SECURITY related<br>`;
+        }
+
+        if (critical > 0) {
+            text += `🚨 ${(critical/total*100).toFixed(1)}% logs are CRITICAL<br>`;
+        }
+
+        if (security > critical) {
+            text += `👉 Check authentication & access control<br>`;
+        }
+
+        if (critical > 2) {
+            text += `👉 System stability may be at risk<br>`;
+        }
+
+        if (critical === 0 && security === 0) {
+            text += `✅ System appears stable`;
+        }
+    }
+
+    document.getElementById("insightsBox").innerHTML = "<b>AI Insights:</b><br>" + text;
+}
+
+function filterLogs() {
+    const search = document.getElementById("search").value.toLowerCase();
+    const filter = document.getElementById("filter").value;
+    const startDate = document.getElementById("startDate").value;
+    const endDate = document.getElementById("endDate").value;
+
+    const filtered = logsData.filter(log => {
+        // Handle invalid timestamps safely
+        if (!log.timestamp || log.timestamp === "N/A") {
+            return false;
+        }
+
+        const logDate = new Date(log.timestamp);
+
+        const start = startDate ? new Date(startDate + "T00:00:00") : null;
+        const end = endDate ? new Date(endDate + "T23:59:59") : null;
+
+        return log.log.toLowerCase().includes(search) &&
+               (filter === "ALL" || log.prediction === filter) &&
+               (!start || logDate >= start) &&
+               (!end || logDate <= end);
+    });
+
+    renderTable(filtered);
+}
+
+async function loadInsights() {
+    try {
+        const res = await fetch("http://127.0.0.1:8000/insights");
+        const data = await res.json();
+
+        document.getElementById("insightsBox").innerHTML =
+            "<b>AI Insights:</b><br>" + data.insights;
+
+    } catch (err) {
+        console.error("Error loading insights:", err);
+    }
+}
+
+async function loadExportSummary() {
+    try {
+        const res = await fetch("http://127.0.0.1:8000/export/summary");
+        const data = await res.json();
+
+        document.getElementById("exportSummaryBox").innerHTML =
+            "🤖 <b>AI Summary:</b><br>" + data.summary;
+
+    } catch (err) {
+        console.error(err);
+        document.getElementById("exportSummaryBox").innerText =
+            "⚠️ Failed to load summary";
+    }
+}
+
+async function loadAlerts() {
+    try {
+        const res = await fetch("http://127.0.0.1:8000/alerts");
+        const data = await res.json();
+
+        const box = document.getElementById("alertsBox");
+
+        if (!data.alerts || data.alerts.length === 0) {
+            box.innerHTML = "✅ No critical alerts";
+            return;
+        }
+
+        let html = "<b>🚨 Alerts:</b><br>";
+
+        data.alerts.forEach(a => {
+            html += `
+                <div style="
+                    margin: 6px 0;
+                    padding: 6px 10px;
+                    background: #fff0f0;
+                    border-left: 4px solid ${a.level === "CRITICAL" ? "red" : "orange"};
+                    border-radius: 4px;
+                ">
+                    ${a.message}
+                </div>
+            `;
+        });
+
+        box.innerHTML = html;
+
+    } catch (err) {
+        console.error(err);
+        document.getElementById("alertsBox").innerText =
+            "⚠️ Failed to load alerts";
+    }
+}
+
+function exportCSV() {
+    window.open("http://127.0.0.1:8000/export/csv", "_blank");
+}
+
+function exportJSON() {
+    window.open("http://127.0.0.1:8000/export/json", "_blank");
+}
+
+window.onload = function () {
+    loadLogs();
+    loadAISummary();
+};
+
+</script>
+
+</body>
+</html>
